@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.novasphere.apexoverlay.ui.crosshair.CrosshairScreen
 import com.novasphere.apexoverlay.ui.feature.FeaturePlaceholderScreen
 import com.novasphere.apexoverlay.ui.home.HomeScreen
 import com.novasphere.apexoverlay.ui.navigation.Screen
@@ -31,6 +32,9 @@ private fun ApexOverlayApp() {
     when (currentRoute) {
         Screen.Home.route -> HomeScreen(
             onNavigate = { screen -> currentRoute = screen.route }
+        )
+        Screen.Crosshair.route -> CrosshairScreen(
+            onBack = { currentRoute = Screen.Home.route }
         )
         else -> {
             val screen = allScreens.first { it.route == currentRoute }
