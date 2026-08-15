@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,10 +37,9 @@ private val homeFeatures = listOf(
     HomeFeature(Screen.Settings, "App preferences")
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    onNavigate: (Screen) -> Unit
-) {
+fun HomeScreen(onNavigate: (Screen) -> Unit) {
     Scaffold { innerPadding ->
 
         Column(
@@ -76,7 +76,6 @@ fun HomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-
                 items(homeFeatures) { feature ->
 
                     FeatureTile(
@@ -89,7 +88,7 @@ fun HomeScreen(
                 }
             }
 
-            // Future banner-ad area.
+            // Reserved space for the future banner ad.
             // No ad SDK is connected yet.
             Box(
                 modifier = Modifier
