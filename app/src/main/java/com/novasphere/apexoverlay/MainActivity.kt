@@ -3,33 +3,69 @@ package com.novasphere.apexoverlay
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.novasphere.apexoverlay.ui.feature.FeaturePlaceholderScreen
+import com.novasphere.apexoverlay.ui.home.HomeScreen
+import com.novasphere.apexoverlay.ui.navigation.Screen
+import com.novasphere.apexoverlay.ui.theme.ApexOverlayTheme
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(text = "ApexOverlay", fontSize = 28.sp)
-                        Text(text = "Build Test Successful", fontSize = 16.sp)
-                    }
-                }
+            ApexOverlayTheme {
+                ApexOverlayApp()
             }
         }
     }
 }
+
+@Composable
+private fun ApexOverlayApp() {
+
+    var currentScreen by rememberSaveable {
+        mutableStateOf(Screen.Home.route)
+    }
+
+    when (currentScreen) {
+
+        Screen.Home.route -> {
+            HomeScreen(
+                onNavigate = { screen ->
+                    currentScreen = screen.route
+                }
+            )
+        }
+
+        else -> {
+
+            val screen = allScreens.first {
+                it.route == currentScreen
+            }
+
+            FeaturePlaceholderScreen(
+                title = screen.title,
+                onBack = {
+                    currentScreen = Screen.Home.route
+                }
+            )
+        }
+    }
+}
+
+private val allScreens = listOf(
+    Screen.Home,
+    Screen.Crosshair,
+    Screen.TouchVisualizer,
+    Screen.Grid,
+    Screen.FpsPing,
+    Screen.Presets,
+    Screen.PointsStore,
+    Screen.Settings
+)
