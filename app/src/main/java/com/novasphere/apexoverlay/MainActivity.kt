@@ -14,10 +14,8 @@ import com.novasphere.apexoverlay.ui.navigation.Screen
 import com.novasphere.apexoverlay.ui.theme.ApexOverlayTheme
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
             ApexOverlayTheme {
                 ApexOverlayApp()
@@ -28,32 +26,17 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun ApexOverlayApp() {
+    var currentRoute by rememberSaveable { mutableStateOf(Screen.Home.route) }
 
-    var currentScreen by rememberSaveable {
-        mutableStateOf(Screen.Home.route)
-    }
-
-    when (currentScreen) {
-
-        Screen.Home.route -> {
-            HomeScreen(
-                onNavigate = { screen ->
-                    currentScreen = screen.route
-                }
-            )
-        }
-
+    when (currentRoute) {
+        Screen.Home.route -> HomeScreen(
+            onNavigate = { screen -> currentRoute = screen.route }
+        )
         else -> {
-
-            val screen = allScreens.first {
-                it.route == currentScreen
-            }
-
+            val screen = allScreens.first { it.route == currentRoute }
             FeaturePlaceholderScreen(
                 title = screen.title,
-                onBack = {
-                    currentScreen = Screen.Home.route
-                }
+                onBack = { currentRoute = Screen.Home.route }
             )
         }
     }
