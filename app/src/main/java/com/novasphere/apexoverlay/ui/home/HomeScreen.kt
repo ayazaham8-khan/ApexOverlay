@@ -1,6 +1,5 @@
 package com.novasphere.apexoverlay.ui.home
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,10 +19,7 @@ import com.novasphere.apexoverlay.ui.components.FeatureTile
 import com.novasphere.apexoverlay.ui.navigation.Screen
 import com.novasphere.apexoverlay.ui.theme.ApexTextSecondary
 
-private data class HomeFeature(
-    val screen: Screen,
-    val subtitle: String
-)
+private data class HomeFeature(val screen: Screen, val subtitle: String)
 
 private val homeFeatures = listOf(
     HomeFeature(Screen.Crosshair, "Custom crosshair overlay"),
@@ -36,62 +32,45 @@ private val homeFeatures = listOf(
 )
 
 @Composable
-fun HomeScreen(
-    onNavigate: (Screen) -> Unit
-) {
+fun HomeScreen(onNavigate: (Screen) -> Unit) {
     Scaffold { innerPadding ->
-
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 12.dp)
         ) {
-
-            Column(
-                modifier = Modifier.padding(
-                    horizontal = 20.dp,
-                    vertical = 20.dp
-                )
-            ) {
-                Text(
-                    text = "ApexOverlay",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-
-                Text(
-                    text = "Crosshair, FPS & Gaming Toolkit",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = ApexTextSecondary
-                )
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(
-                    horizontal = 20.dp,
-                    vertical = 4.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(homeFeatures) { feature ->
-
-                    FeatureTile(
-                        title = feature.screen.title,
-                        subtitle = feature.subtitle,
-                        onClick = {
-                            onNavigate(feature.screen)
-                        }
+            item {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                    Text(text = "ApexOverlay", style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        text = "Crosshair, FPS & Gaming Toolkit",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ApexTextSecondary
                     )
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            )
+            items(homeFeatures) { feature ->
+                Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                    FeatureTile(
+                        title = feature.screen.title,
+                        subtitle = feature.subtitle,
+                        onClick = { onNavigate(feature.screen) }
+                    )
+                }
+            }
+
+            item {
+                // Reserved space for the future in-app banner ad slot.
+                // Empty in this milestone - no ad SDK is wired in yet, and this
+                // region is intentionally separate from the overlay engine.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                )
+            }
         }
     }
 }
