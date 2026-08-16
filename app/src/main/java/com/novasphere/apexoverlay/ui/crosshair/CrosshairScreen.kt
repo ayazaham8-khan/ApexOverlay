@@ -49,6 +49,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.novasphere.apexoverlay.overlay.CrosshairOverlayService
 import com.novasphere.apexoverlay.overlay.OverlayConfigHolder
+import com.novasphere.apexoverlay.overlay.OverlayDiagnostics
 import com.novasphere.apexoverlay.overlay.OverlayPermission
 import com.novasphere.apexoverlay.ui.theme.ApexAccent
 import com.novasphere.apexoverlay.ui.theme.ApexBorder
@@ -57,6 +58,20 @@ import com.novasphere.apexoverlay.ui.theme.ApexTextSecondary
 
 @Composable
 fun CrosshairScreen(onBack: () -> Unit) {
+    var showDebugLog by remember { mutableStateOf(false) }
+
+    if (showDebugLog) {
+        DebugLogScreen(onBack = { showDebugLog = false })
+    } else {
+        CrosshairMainContent(
+            onBack = onBack,
+            onShowDebugLog = { showDebugLog = true }
+        )
+    }
+}
+
+@Composable
+private fun CrosshairMainContent(onBack: () -> Unit, onShowDebugLog: () -> Unit) {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
 
@@ -66,8 +81,6 @@ fun CrosshairScreen(onBack: () -> Unit) {
         mutableStateOf(OverlayPermission.hasOverlayPermission(context))
     }
 
-    // Re-check overlay permission whenever this screen's Activity resumes -
-    // covers returning from the system "Display over other apps" settings screen.
     DisposableEffect(activity) {
         if (activity == null) {
             return@DisposableEffect onDispose { }
@@ -81,7 +94,6 @@ fun CrosshairScreen(onBack: () -> Unit) {
         onDispose { activity.lifecycle.removeObserver(observer) }
     }
 
-    // Keep a running overlay in sync with live UI changes.
     LaunchedEffect(config) {
         OverlayConfigHolder.crosshairConfig = config
     }
@@ -99,12 +111,14 @@ fun CrosshairScreen(onBack: () -> Unit) {
                 return
             }
             OverlayConfigHolder.crosshairConfig = config
+            OverlayDiagnostics.log(context, "UI starting CrosshairOverlayService")
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, CrosshairOverlayService::class.java)
             )
             config = config.copy(overlayEnabled = true)
         } else {
+            OverlayDiagnostics.log(context, "UI stopping CrosshairOverlayService")
             context.stopService(Intent(context, CrosshairOverlayService::class.java))
             config = config.copy(overlayEnabled = false)
         }
@@ -141,6 +155,23 @@ fun CrosshairScreen(onBack: () -> Unit) {
                         checked = config.overlayEnabled,
                         onCheckedChange = { setOverlayEnabled(it) }
                     )
+                }
+            }
+
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onShowDebugLog) {
+                        Text(
+                            text = "View Debug Log",
+                            color = ApexTextSecondary,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             }
 
@@ -199,6 +230,69 @@ fun CrosshairScreen(onBack: () -> Unit) {
                     checked = config.glowEnabled,
                     onCheckedChange = { config = config.copy(glowEnabled = it) }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugLogScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var logText by remember { mutableStateOf(OverlayDiagnostics.readLog(context)) }
+
+    Scaffold(
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onBack) {
+                    Text(text = "← Back", color = ApexAccent)
+                }
+                Text(
+                    text = "Debug Log",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextButton(onClick = { logText = OverlayDiagnostics.readLog(context) }) {
+                    Text(text = "Refresh", color = ApexAccent)
+                }
+                TextButton(onClick = {
+                    OverlayDiagnostics.clearLog(context)
+                    logText = OverlayDiagnostics.readLog(context)
+                }) {
+                    Text(text = "Clear", color = ApexTextSecondary)
+                }
+            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+            ) {
+                item {
+                    Text(
+                        text = logText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ApexTextSecondary
+                    )
+                }
             }
         }
     }
