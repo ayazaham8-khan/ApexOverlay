@@ -31,30 +31,44 @@ class CrosshairOverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        ensureNotificationChannel()
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            buildNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-        )
-        addOverlayView()
+        OverlayDiagnostics.log(this, "SERVICE onCreate() start")
+        try {
+            ensureNotificationChannel()
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+            OverlayDiagnostics.log(this, "SERVICE startForeground() succeeded")
+            addOverlayView()
+        } catch (e: Exception) {
+            OverlayDiagnostics.logError(this, "SERVICE onCreate() failed", e)
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        OverlayDiagnostics.log(this, "SERVICE onStartCommand action=${intent?.action}")
         if (intent?.action == ACTION_STOP_OVERLAY) {
+            OverlayDiagnostics.log(this, "SERVICE stop action received, calling stopSelf()")
             stopSelf()
         }
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        OverlayDiagnostics.log(this, "SERVICE onDestroy() called - this is a CLEAN stop")
         removeOverlayView()
+        OverlayDiagnostics.log(this, "SERVICE onDestroy() complete")
         super.onDestroy()
     }
 
     private fun addOverlayView() {
+        OverlayDiagnostics.log(this, "SERVICE addOverlayView() start")
+
         if (!OverlayPermission.hasOverlayPermission(this)) {
+            OverlayDiagnostics.log(this, "SERVICE addOverlayView() aborted - permission missing")
             stopSelf()
             return
         }
@@ -94,7 +108,9 @@ class CrosshairOverlayService : Service() {
 
         try {
             wm.addView(composeView, params)
+            OverlayDiagnostics.log(this, "SERVICE overlay view added to WindowManager successfully")
         } catch (e: Exception) {
+            OverlayDiagnostics.logError(this, "SERVICE wm.addView() failed", e)
             stopSelf()
         }
     }
