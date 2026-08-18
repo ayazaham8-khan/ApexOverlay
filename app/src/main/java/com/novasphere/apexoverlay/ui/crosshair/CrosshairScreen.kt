@@ -2,8 +2,6 @@ package com.novasphere.apexoverlay.ui.crosshair
 
 import android.content.Intent
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,43 +49,66 @@ import com.novasphere.apexoverlay.overlay.CrosshairOverlayService
 import com.novasphere.apexoverlay.overlay.OverlayConfigHolder
 import com.novasphere.apexoverlay.overlay.OverlayDiagnostics
 import com.novasphere.apexoverlay.overlay.OverlayPermission
+import com.novasphere.apexoverlay.overlay.SetupCheckEvaluator
+import com.novasphere.apexoverlay.overlay.SetupCheckStatus
+import com.novasphere.apexoverlay.overlay.SetupPreferences
+import com.novasphere.apexoverlay.ui.setup.OemGuidanceScreen
+import com.novasphere.apexoverlay.ui.setup.SetupCheckSection
 import com.novasphere.apexoverlay.ui.theme.ApexAccent
 import com.novasphere.apexoverlay.ui.theme.ApexBorder
 import com.novasphere.apexoverlay.ui.theme.ApexSurfaceElevated
 import com.novasphere.apexoverlay.ui.theme.ApexTextSecondary
 
+private enum class CrosshairSubScreen { MAIN, DEBUG_LOG, OEM_GUIDANCE }
+
 @Composable
 fun CrosshairScreen(onBack: () -> Unit) {
-    var showDebugLog by remember { mutableStateOf(false) }
+    var activeScreen by remember { mutableStateOf(CrosshairSubScreen.MAIN) }
 
-    if (showDebugLog) {
-        DebugLogScreen(onBack = { showDebugLog = false })
-    } else {
-        CrosshairMainContent(
+    when (activeScreen) {
+        CrosshairSubScreen.MAIN -> CrosshairMainContent(
             onBack = onBack,
-            onShowDebugLog = { showDebugLog = true }
+            onShowDebugLog = { activeScreen = CrosshairSubScreen.DEBUG_LOG },
+            onShowOemGuidance = { activeScreen = CrosshairSubScreen.OEM_GUIDANCE }
+        )
+        CrosshairSubScreen.DEBUG_LOG -> DebugLogScreen(
+            onBack = { activeScreen = CrosshairSubScreen.MAIN }
+        )
+        CrosshairSubScreen.OEM_GUIDANCE -> OemGuidanceScreen(
+            onBack = { activeScreen = CrosshairSubScreen.MAIN }
         )
     }
 }
 
 @Composable
-private fun CrosshairMainContent(onBack: () -> Unit, onShowDebugLog: () -> Unit) {
+private fun CrosshairMainContent(
+    onBack: () -> Unit,
+    onShowDebugLog: () -> Unit,
+    onShowOemGuidance: () -> Unit
+) {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
 
     var config by remember { mutableStateOf(CrosshairConfig()) }
     var selectedPresetId by remember { mutableStateOf(crosshairPresets.first().id) }
-    var hasOverlayPermission by remember {
-        mutableStateOf(OverlayPermission.hasOverlayPermission(context))
+    var setupChecks by remember { mutableStateOf(SetupCheckEvaluator.evaluate(context)) }
+    var showFirstRunBanner by remember {
+        mutableStateOf(!SetupPreferences.hasSeenSetupIntro(context))
     }
 
+    val hasOverlayPermission = setupChecks
+        .first { it.id == "overlay_permission" }
+        .status == SetupCheckStatus.READY
+
+    // Re-run every check whenever this screen's Activity resumes - covers
+    // returning from any of the system settings screens the checklist opens.
     DisposableEffect(activity) {
         if (activity == null) {
             return@DisposableEffect onDispose { }
         }
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                hasOverlayPermission = OverlayPermission.hasOverlayPermission(context)
+                setupChecks = SetupCheckEvaluator.evaluate(context)
             }
         }
         activity.lifecycle.addObserver(observer)
@@ -98,16 +119,10 @@ private fun CrosshairMainContent(onBack: () -> Unit, onShowDebugLog: () -> Unit)
         OverlayConfigHolder.crosshairConfig = config
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) {
-        hasOverlayPermission = OverlayPermission.hasOverlayPermission(context)
-    }
-
     fun setOverlayEnabled(enabled: Boolean) {
         if (enabled) {
             if (!hasOverlayPermission) {
-                permissionLauncher.launch(OverlayPermission.overlayPermissionIntent(context))
+                context.startActivity(OverlayPermission.overlayPermissionIntent(context))
                 return
             }
             OverlayConfigHolder.crosshairConfig = config
@@ -136,26 +151,27 @@ private fun CrosshairMainContent(onBack: () -> Unit, onShowDebugLog: () -> Unit)
             item { PreviewSection(config = config) }
 
             item {
-                Column {
-                    if (!hasOverlayPermission) {
-                        PermissionNotice(
-                            onGrantClick = {
-                                permissionLauncher.launch(
-                                    OverlayPermission.overlayPermissionIntent(context)
-                                )
-                            }
-                        )
-                    }
-                    ToggleRow(
-                        label = "Enable Crosshair",
-                        description = if (hasOverlayPermission)
-                            "Shows the crosshair above other apps"
-                        else
-                            "Overlay permission required",
-                        checked = config.overlayEnabled,
-                        onCheckedChange = { setOverlayEnabled(it) }
-                    )
-                }
+                SetupCheckSection(
+                    checks = setupChecks,
+                    showFirstRunBanner = showFirstRunBanner,
+                    onDismissFirstRunBanner = {
+                        SetupPreferences.markSetupIntroSeen(context)
+                        showFirstRunBanner = false
+                    },
+                    onOpenOemInstructions = onShowOemGuidance
+                )
+            }
+
+            item {
+                ToggleRow(
+                    label = "Enable Crosshair",
+                    description = if (hasOverlayPermission)
+                        "Shows the crosshair above other apps"
+                    else
+                        "Overlay permission required",
+                    checked = config.overlayEnabled,
+                    onCheckedChange = { setOverlayEnabled(it) }
+                )
             }
 
             item {
@@ -315,31 +331,6 @@ private fun CrosshairTopBar(onBack: () -> Unit) {
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(start = 8.dp)
         )
-    }
-}
-
-@Composable
-private fun PermissionNotice(onGrantClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(ApexSurfaceElevated)
-            .border(width = 1.dp, color = ApexAccent, shape = RoundedCornerShape(14.dp))
-            .padding(16.dp)
-    ) {
-        Text(text = "Overlay permission needed", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "ApexOverlay needs \"Display over other apps\" permission to show the crosshair above your game.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = ApexTextSecondary
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        TextButton(onClick = onGrantClick) {
-            Text(text = "Grant Permission", color = ApexAccent)
-        }
     }
 }
 
