@@ -31,7 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -115,7 +115,7 @@ private fun CrosshairMainContent(
         onDispose { activity.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(config) {
+    SideEffect {
         OverlayConfigHolder.crosshairConfig = config
     }
 
