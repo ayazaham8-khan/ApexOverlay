@@ -12,8 +12,6 @@ import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
@@ -96,7 +94,7 @@ class CrosshairOverlayService : Service() {
             setViewTreeSavedStateRegistryOwner(owner)
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             setContent {
-                val config by OverlayConfigHolder.configFlow.collectAsState()
+                val config = OverlayConfigHolder.crosshairConfig
                 CrosshairCanvas(
                     config = config,
                     modifier = Modifier.size(200.dp)
@@ -199,7 +197,7 @@ class CrosshairOverlayService : Service() {
             setViewTreeSavedStateRegistryOwner(owner)
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             setContent {
-                val config by OverlayConfigHolder.configFlow.collectAsState()
+                val config = OverlayConfigHolder.crosshairConfig
                 QuickControlsPanel(
                     config = config,
                     onConfigChange = { OverlayConfigHolder.crosshairConfig = it },
