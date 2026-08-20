@@ -3,6 +3,7 @@ package com.novasphere.apexoverlay.ui.crosshair
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -16,9 +17,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.novasphere.apexoverlay.ui.theme.ApexAccent
 import com.novasphere.apexoverlay.ui.theme.ApexSurfaceElevated
-import kotlin.math.abs
-
-private const val TAP_MOVEMENT_THRESHOLD_PX = 12f
 
 @Composable
 fun QuickControlButton(
@@ -33,18 +31,13 @@ fun QuickControlButton(
             .background(ApexSurfaceElevated)
             .border(width = 1.5.dp, color = ApexAccent, shape = CircleShape)
             .pointerInput(Unit) {
-                var totalMovement = 0f
+                detectTapGestures(onTap = { onTap() })
+            }
+            .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragStart = { totalMovement = 0f },
                     onDrag = { change, dragAmount ->
                         change.consume()
-                        totalMovement += abs(dragAmount.x) + abs(dragAmount.y)
                         onDrag(dragAmount.x, dragAmount.y)
-                    },
-                    onDragEnd = {
-                        if (totalMovement < TAP_MOVEMENT_THRESHOLD_PX) {
-                            onTap()
-                        }
                     }
                 )
             },
