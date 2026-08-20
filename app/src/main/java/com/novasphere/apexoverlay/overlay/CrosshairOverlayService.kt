@@ -12,6 +12,8 @@ import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
@@ -20,12 +22,17 @@ import androidx.core.app.ServiceCompat
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.novasphere.apexoverlay.ui.crosshair.CrosshairCanvas
+import com.novasphere.apexoverlay.ui.crosshair.QuickControlButton
+import com.novasphere.apexoverlay.ui.crosshair.QuickControlsPanel
 
 class CrosshairOverlayService : Service() {
 
     private var windowManager: WindowManager? = null
-    private var overlayView: ComposeView? = null
-    private var overlayLifecycleOwner: OverlayLifecycleOwner? = null
+    private var crosshairView: ComposeView? = null
+    private var buttonView: ComposeView? = null
+    private var panelView: ComposeView? = null
+    private var sharedLifecycleOwner: OverlayLifecycleOwner? = null
+    private var buttonParams: WindowManager.LayoutParams? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -41,7 +48,7 @@ class CrosshairOverlayService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
             OverlayDiagnostics.log(this, "SERVICE startForeground() succeeded")
-            addOverlayView()
+            setupOverlayViews()
         } catch (e: Exception) {
             OverlayDiagnostics.logError(this, "SERVICE onCreate() failed", e)
             stopSelf()
@@ -59,16 +66,14 @@ class CrosshairOverlayService : Service() {
 
     override fun onDestroy() {
         OverlayDiagnostics.log(this, "SERVICE onDestroy() called - this is a CLEAN stop")
-        removeOverlayView()
+        removeAllOverlayViews()
         OverlayDiagnostics.log(this, "SERVICE onDestroy() complete")
         super.onDestroy()
     }
 
-    private fun addOverlayView() {
-        OverlayDiagnostics.log(this, "SERVICE addOverlayView() start")
-
+    private fun setupOverlayViews() {
         if (!OverlayPermission.hasOverlayPermission(this)) {
-            OverlayDiagnostics.log(this, "SERVICE addOverlayView() aborted - permission missing")
+            OverlayDiagnostics.log(this, "SERVICE setupOverlayViews() aborted - permission missing")
             stopSelf()
             return
         }
@@ -77,21 +82,28 @@ class CrosshairOverlayService : Service() {
         windowManager = wm
 
         val owner = OverlayLifecycleOwner().also { it.onCreate() }
-        overlayLifecycleOwner = owner
+        sharedLifecycleOwner = owner
 
-        val composeView = ComposeView(this).apply {
+        addCrosshairView(wm, owner)
+        addQuickControlsButton(wm, owner)
+    }
+
+    private fun addCrosshairView(wm: WindowManager, owner: OverlayLifecycleOwner) {
+        OverlayDiagnostics.log(this, "SERVICE addOverlayView() start")
+
+        val view = ComposeView(this).apply {
             setViewTreeLifecycleOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             setContent {
-                val config = OverlayConfigHolder.crosshairConfig
+                val config by OverlayConfigHolder.configFlow.collectAsState()
                 CrosshairCanvas(
                     config = config,
                     modifier = Modifier.size(200.dp)
                 )
             }
         }
-        overlayView = composeView
+        crosshairView = view
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -107,7 +119,7 @@ class CrosshairOverlayService : Service() {
         }
 
         try {
-            wm.addView(composeView, params)
+            wm.addView(view, params)
             OverlayDiagnostics.log(this, "SERVICE overlay view added to WindowManager successfully")
         } catch (e: Exception) {
             OverlayDiagnostics.logError(this, "SERVICE wm.addView() failed", e)
@@ -115,13 +127,150 @@ class CrosshairOverlayService : Service() {
         }
     }
 
-    private fun removeOverlayView() {
-        overlayView?.let { view ->
-            runCatching { windowManager?.removeView(view) }
+    private fun addQuickControlsButton(wm: WindowManager, owner: OverlayLifecycleOwner) {
+        val density = resources.displayMetrics.density
+        val startX = (16 * density).toInt()
+        val startY = (resources.displayMetrics.heightPixels * 0.35f).toInt()
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = startX
+            y = startY
         }
-        overlayView = null
-        overlayLifecycleOwner?.onDestroy()
-        overlayLifecycleOwner = null
+        buttonParams = params
+
+        val view = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            setContent {
+                QuickControlButton(
+                    onDrag = { dx, dy -> moveQuickControlsButton(dx, dy) },
+                    onTap = { toggleQuickControlsPanel() }
+                )
+            }
+        }
+        buttonView = view
+
+        try {
+            wm.addView(view, params)
+            OverlayDiagnostics.log(this, "SERVICE Quick Controls button created")
+        } catch (e: Exception) {
+            OverlayDiagnostics.logError(this, "SERVICE Quick Controls button addView failed", e)
+            buttonView = null
+        }
+    }
+
+    private fun moveQuickControlsButton(dxPx: Float, dyPx: Float) {
+        val wm = windowManager ?: return
+        val view = buttonView ?: return
+        val params = buttonParams ?: return
+        params.x = (params.x + dxPx.toInt()).coerceAtLeast(0)
+        params.y = (params.y + dyPx.toInt()).coerceAtLeast(0)
+        try {
+            wm.updateViewLayout(view, params)
+        } catch (e: Exception) {
+            OverlayDiagnostics.logError(this, "SERVICE Quick Controls button updateViewLayout failed", e)
+        }
+    }
+
+    private fun toggleQuickControlsPanel() {
+        if (QuickControlsState.isPanelOpen) {
+            closeQuickControlsPanel()
+        } else {
+            openQuickControlsPanel()
+        }
+    }
+
+    private fun openQuickControlsPanel() {
+        val wm = windowManager ?: return
+        val owner = sharedLifecycleOwner ?: return
+        if (panelView != null) return
+
+        val view = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            setContent {
+                val config by OverlayConfigHolder.configFlow.collectAsState()
+                QuickControlsPanel(
+                    config = config,
+                    onConfigChange = { OverlayConfigHolder.crosshairConfig = it },
+                    onClose = { closeQuickControlsPanel() }
+                )
+            }
+        }
+        panelView = view
+
+        try {
+            wm.addView(view, computePanelParams())
+            QuickControlsState.isPanelOpen = true
+            OverlayDiagnostics.log(this, "UI Quick Controls opened")
+        } catch (e: Exception) {
+            OverlayDiagnostics.logError(this, "SERVICE Quick Controls panel addView failed", e)
+            panelView = null
+        }
+    }
+
+    private fun closeQuickControlsPanel() {
+        val view = panelView ?: return
+        runCatching { windowManager?.removeView(view) }
+        panelView = null
+        QuickControlsState.isPanelOpen = false
+        OverlayDiagnostics.log(this, "UI Quick Controls closed")
+    }
+
+    private fun computePanelParams(): WindowManager.LayoutParams {
+        val density = resources.displayMetrics.density
+        val screenHeight = resources.displayMetrics.heightPixels
+        val buttonSizePx = (52 * density).toInt()
+        val marginPx = (8 * density).toInt()
+        val estimatedPanelHeightPx = (340 * density).toInt()
+
+        val anchorX = buttonParams?.x ?: 0
+        val anchorY = buttonParams?.y ?: 0
+
+        val panelY = if (anchorY > screenHeight / 2) {
+            (anchorY - estimatedPanelHeightPx - marginPx).coerceAtLeast(0)
+        } else {
+            anchorY + buttonSizePx + marginPx
+        }
+
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = anchorX.coerceAtLeast(0)
+            y = panelY
+        }
+    }
+
+    private fun removeAllOverlayViews() {
+        crosshairView?.let { view -> runCatching { windowManager?.removeView(view) } }
+        crosshairView = null
+
+        buttonView?.let { view -> runCatching { windowManager?.removeView(view) } }
+        buttonView = null
+        OverlayDiagnostics.log(this, "SERVICE Quick Controls removed")
+
+        panelView?.let { view -> runCatching { windowManager?.removeView(view) } }
+        panelView = null
+        QuickControlsState.isPanelOpen = false
+
+        sharedLifecycleOwner?.onDestroy()
+        sharedLifecycleOwner = null
         windowManager = null
     }
 
