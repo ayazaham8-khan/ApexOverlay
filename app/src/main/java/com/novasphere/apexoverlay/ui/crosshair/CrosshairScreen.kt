@@ -89,7 +89,7 @@ private fun CrosshairMainContent(
     val context = LocalContext.current
     val activity = context as? ComponentActivity
 
-    var config by remember { mutableStateOf(CrosshairConfig()) }
+    var config by remember { mutableStateOf(OverlayConfigHolder.crosshairConfig) }
     var selectedPresetId by remember { mutableStateOf(crosshairPresets.first().id) }
     var setupChecks by remember { mutableStateOf(SetupCheckEvaluator.evaluate(context)) }
     var showFirstRunBanner by remember {
@@ -100,8 +100,6 @@ private fun CrosshairMainContent(
         .first { it.id == "overlay_permission" }
         .status == SetupCheckStatus.READY
 
-    // Re-run every check whenever this screen's Activity resumes - covers
-    // returning from any of the system settings screens the checklist opens.
     DisposableEffect(activity) {
         if (activity == null) {
             return@DisposableEffect onDispose { }
