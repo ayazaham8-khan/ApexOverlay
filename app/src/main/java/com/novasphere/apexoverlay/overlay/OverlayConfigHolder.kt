@@ -1,6 +1,8 @@
 package com.novasphere.apexoverlay.overlay
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.novasphere.apexoverlay.ui.crosshair.CrosshairConfig
 
 /**
